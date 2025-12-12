@@ -10,15 +10,14 @@ Unlock encrypted ZFS datasets on TrueNAS via the API.
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [TrueNAS Unlock](#truenas-unlock)
-  - [Install](#install)
-  - [Setup](#setup)
-  - [Usage](#usage)
-  - [CLI](#cli)
-  - [Running as a Service](#running-as-a-service)
-  - [Development](#development)
-  - [Credits](#credits)
-  - [License](#license)
+- [Install](#install)
+- [Setup](#setup)
+- [Usage](#usage)
+- [CLI](#cli)
+- [Running as a Service](#running-as-a-service)
+- [Development](#development)
+- [Credits](#credits)
+- [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
