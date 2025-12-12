@@ -116,18 +116,11 @@ truenas-unlock service install
 # Check status
 truenas-unlock service status
 
+# View logs (follows by default)
+truenas-unlock service logs
+
 # Uninstall
 truenas-unlock service uninstall
-```
-
-View logs:
-
-```bash
-# Linux
-journalctl --user -u truenas-unlock -f
-
-# macOS
-tail -f ~/Library/Logs/truenas-unlock/*.out ~/Library/Logs/truenas-unlock/*.err
 ```
 
 ## Development

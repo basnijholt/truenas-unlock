@@ -5,6 +5,7 @@ Unlocks encrypted ZFS datasets on TrueNAS via the API.
 
 from __future__ import annotations
 
+import os
 import platform
 import shutil
 import subprocess
@@ -401,6 +402,39 @@ def service_status() -> None:
             console.print("[green]●[/green] Service is running")
         else:
             console.print("[dim]○[/dim] Service is not running")
+    else:
+        err_console.print(f"[red]Unsupported OS: {system}[/red]")
+        raise typer.Exit(1)
+
+
+@service_app.command("logs")
+def service_logs(
+    follow: Annotated[bool, typer.Option("--follow", "-f", help="Follow log output")] = True,
+) -> None:
+    """View service logs."""
+    system = platform.system()
+
+    if system == "Darwin":
+        log_dir = Path.home() / "Library" / "Logs" / "truenas-unlock"
+        out_log = log_dir / "truenas-unlock.out"
+        err_log = log_dir / "truenas-unlock.err"
+
+        if not log_dir.exists():
+            err_console.print("[yellow]No logs found. Is the service installed?[/yellow]")
+            raise typer.Exit(1)
+
+        cmd = ["tail"]
+        if follow:
+            cmd.append("-f")
+        cmd.extend([str(out_log), str(err_log)])
+        os.execvp("tail", cmd)
+
+    elif system == "Linux":
+        cmd = ["journalctl", "--user", "-u", "truenas-unlock"]
+        if follow:
+            cmd.append("-f")
+        os.execvp("journalctl", cmd)
+
     else:
         err_console.print(f"[red]Unsupported OS: {system}[/red]")
         raise typer.Exit(1)
