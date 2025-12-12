@@ -7,8 +7,6 @@
   - [Usage](#usage)
   - [CLI](#cli)
   - [Running as a Service](#running-as-a-service)
-    - [Linux (systemd)](#linux-systemd)
-    - [macOS (launchd)](#macos-launchd)
   - [Development](#development)
   - [Credits](#credits)
   - [License](#license)
