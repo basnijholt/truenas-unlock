@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.truenas_zfs_unlock</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string><UV-PATH></string>
+    <string>tool</string>
+    <string>run</string>
+    <string>truenas-zfs-unlock</string>
+    <string>--daemon</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>WorkingDirectory</key>
+  <string><HOME-DIR></string>
+  <key>StandardOutPath</key>
+  <string><LOG-DIR>/truenas-zfs-unlock.out</string>
+  <key>StandardErrorPath</key>
+  <string><LOG-DIR>/truenas-zfs-unlock.err</string>
+</dict>
+</plist>

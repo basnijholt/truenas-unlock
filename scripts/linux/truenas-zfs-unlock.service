@@ -1,0 +1,12 @@
+[Unit]
+Description=TrueNAS ZFS Unlock
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=<UV-PATH> tool run truenas-zfs-unlock --daemon
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
