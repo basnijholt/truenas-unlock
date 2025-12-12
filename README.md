@@ -1,3 +1,20 @@
+<!-- START doctoc generated TOC please keep comment here to allow auto update -->
+<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+
+- [TrueNAS ZFS Unlock](#truenas-zfs-unlock)
+  - [Install](#install)
+  - [Setup](#setup)
+  - [Usage](#usage)
+  - [CLI](#cli)
+  - [Running as a Service](#running-as-a-service)
+    - [Linux (systemd)](#linux-systemd)
+    - [macOS (launchd)](#macos-launchd)
+  - [Development](#development)
+  - [Credits](#credits)
+  - [License](#license)
+
+<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
 # TrueNAS ZFS Unlock
 
 [![PyPI](https://img.shields.io/pypi/v/truenas-zfs-unlock)](https://pypi.org/project/truenas-zfs-unlock/)
