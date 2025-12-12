@@ -110,44 +110,27 @@ truenas-unlock --help
 
 ## Running as a Service
 
-### Linux (systemd)
-
-Install:
+Auto-detects Linux (systemd) or macOS (launchd):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/linux/install.sh | bash
+# Install and start
+truenas-unlock service install
+
+# Check status
+truenas-unlock service status
+
+# Uninstall
+truenas-unlock service uninstall
 ```
 
 View logs:
 
 ```bash
+# Linux
 journalctl --user -u truenas-unlock -f
-```
 
-Uninstall:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/linux/uninstall.sh | bash
-```
-
-### macOS (launchd)
-
-Install:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/macos/install.sh | bash
-```
-
-View logs:
-
-```bash
+# macOS
 tail -f ~/Library/Logs/truenas-unlock/*.out ~/Library/Logs/truenas-unlock/*.err
-```
-
-Uninstall:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/macos/uninstall.sh | bash
 ```
 
 ## Development

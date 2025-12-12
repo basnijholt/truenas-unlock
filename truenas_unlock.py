@@ -5,6 +5,9 @@ Unlocks encrypted ZFS datasets on TrueNAS via the API.
 
 from __future__ import annotations
 
+import platform
+import shutil
+import subprocess
 import time
 from enum import Enum
 from pathlib import Path
@@ -35,6 +38,51 @@ skip_cert_verify: true
 datasets:
   tank/syncthing: ~/.secrets/syncthing-key
   tank/photos: my-literal-passphrase
+"""
+
+SYSTEMD_SERVICE = """\
+[Unit]
+Description=TrueNAS Unlock
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart={uv_path} tool run truenas-unlock --daemon
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
+"""
+
+LAUNCHD_PLIST = """\
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.truenas_unlock</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>{uv_path}</string>
+    <string>tool</string>
+    <string>run</string>
+    <string>truenas-unlock</string>
+    <string>--daemon</string>
+  </array>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>KeepAlive</key>
+  <true/>
+  <key>WorkingDirectory</key>
+  <string>{home}</string>
+  <key>StandardOutPath</key>
+  <string>{log_dir}/truenas-unlock.out</string>
+  <key>StandardErrorPath</key>
+  <string>{log_dir}/truenas-unlock.err</string>
+</dict>
+</plist>
 """
 
 
@@ -211,15 +259,166 @@ app = typer.Typer(
     context_settings={"help_option_names": ["-h", "--help"]},
 )
 
+service_app = typer.Typer(help="Manage system service")
+app.add_typer(service_app, name="service")
 
-@app.command()
+
+def _get_uv_path() -> Path | None:
+    """Find uv executable."""
+    uv = shutil.which("uv")
+    return Path(uv) if uv else None
+
+
+def _run(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    """Run a command and return the result."""
+    return subprocess.run(cmd, capture_output=True, text=True, check=check)
+
+
+@service_app.command("install")
+def service_install() -> None:
+    """Install and start the system service."""
+    uv_path = _get_uv_path()
+    if not uv_path:
+        err_console.print("[red]Error: uv not found. Install from https://docs.astral.sh/uv/[/red]")
+        raise typer.Exit(1)
+
+    # Check config exists
+    config_path = find_config()
+    if not config_path:
+        err_console.print("[yellow]Warning: Config not found.[/yellow]")
+        err_console.print("Create ~/.config/truenas-unlock/config.yaml before starting.")
+
+    system = platform.system()
+
+    if system == "Darwin":
+        _install_macos(uv_path)
+    elif system == "Linux":
+        _install_linux(uv_path)
+    else:
+        err_console.print(f"[red]Unsupported OS: {system}[/red]")
+        raise typer.Exit(1)
+
+
+def _install_macos(uv_path: Path) -> None:
+    """Install launchd service on macOS."""
+    plist_name = "com.truenas_unlock.plist"
+    plist_dst = Path.home() / "Library" / "LaunchAgents" / plist_name
+    log_dir = Path.home() / "Library" / "Logs" / "truenas-unlock"
+
+    log_dir.mkdir(parents=True, exist_ok=True)
+    plist_dst.parent.mkdir(parents=True, exist_ok=True)
+
+    content = LAUNCHD_PLIST.format(
+        uv_path=uv_path,
+        home=Path.home(),
+        log_dir=log_dir,
+    )
+    plist_dst.write_text(content)
+
+    _run(["launchctl", "load", str(plist_dst)])
+
+    console.print("[green]✓[/green] Service installed and started")
+    console.print(f"  Logs: {log_dir}/")
+    console.print("\n  Uninstall: [bold]truenas-unlock service uninstall[/bold]")
+
+
+def _install_linux(uv_path: Path) -> None:
+    """Install systemd user service on Linux."""
+    service_name = "truenas-unlock.service"
+    service_dir = Path.home() / ".config" / "systemd" / "user"
+    service_dst = service_dir / service_name
+
+    service_dir.mkdir(parents=True, exist_ok=True)
+
+    content = SYSTEMD_SERVICE.format(uv_path=uv_path)
+    service_dst.write_text(content)
+
+    _run(["systemctl", "--user", "daemon-reload"])
+    _run(["systemctl", "--user", "enable", "--now", "truenas-unlock"])
+
+    console.print("[green]✓[/green] Service installed and started")
+    console.print("\n  View logs: [bold]journalctl --user -u truenas-unlock -f[/bold]")
+    console.print("  Run at boot: [bold]sudo loginctl enable-linger $USER[/bold]")
+    console.print("\n  Uninstall: [bold]truenas-unlock service uninstall[/bold]")
+
+
+@service_app.command("uninstall")
+def service_uninstall() -> None:
+    """Stop and remove the system service."""
+    system = platform.system()
+
+    if system == "Darwin":
+        _uninstall_macos()
+    elif system == "Linux":
+        _uninstall_linux()
+    else:
+        err_console.print(f"[red]Unsupported OS: {system}[/red]")
+        raise typer.Exit(1)
+
+
+def _uninstall_macos() -> None:
+    """Uninstall launchd service on macOS."""
+    plist_dst = Path.home() / "Library" / "LaunchAgents" / "com.truenas_unlock.plist"
+
+    if not plist_dst.exists():
+        console.print("Service not installed.")
+        return
+
+    _run(["launchctl", "unload", str(plist_dst)], check=False)
+    plist_dst.unlink()
+    console.print("[green]✓[/green] Service uninstalled")
+
+
+def _uninstall_linux() -> None:
+    """Uninstall systemd user service on Linux."""
+    service_dst = Path.home() / ".config" / "systemd" / "user" / "truenas-unlock.service"
+
+    if not service_dst.exists():
+        console.print("Service not installed.")
+        return
+
+    _run(["systemctl", "--user", "stop", "truenas-unlock"], check=False)
+    _run(["systemctl", "--user", "disable", "truenas-unlock"], check=False)
+    service_dst.unlink()
+    _run(["systemctl", "--user", "daemon-reload"])
+    console.print("[green]✓[/green] Service uninstalled")
+
+
+@service_app.command("status")
+def service_status() -> None:
+    """Check service status."""
+    system = platform.system()
+
+    if system == "Darwin":
+        result = _run(["launchctl", "list"], check=False)
+        if "com.truenas_unlock" in result.stdout:
+            console.print("[green]●[/green] Service is running")
+        else:
+            console.print("[dim]○[/dim] Service is not running")
+    elif system == "Linux":
+        result = _run(["systemctl", "--user", "is-active", "truenas-unlock"], check=False)
+        if result.stdout.strip() == "active":
+            console.print("[green]●[/green] Service is running")
+        else:
+            console.print("[dim]○[/dim] Service is not running")
+    else:
+        err_console.print(f"[red]Unsupported OS: {system}[/red]")
+        raise typer.Exit(1)
+
+
+@app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     config_path: Annotated[Path | None, typer.Option("--config", "-c", help="Config file path")] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", "-n", help="Show what would be done")] = False,
     daemon: Annotated[bool, typer.Option("--daemon", "-d", help="Run continuously")] = False,
     interval: Annotated[int, typer.Option("--interval", "-i", help="Seconds between runs")] = 10,
 ) -> None:
     """Unlock encrypted ZFS datasets on TrueNAS."""
+    # If a subcommand is invoked, don't run the main logic
+    if ctx.invoked_subcommand is not None:
+        return
+
     if config_path is None:
         config_path = find_config()
 
