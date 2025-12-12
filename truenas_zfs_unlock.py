@@ -6,6 +6,7 @@ Unlocks encrypted ZFS datasets on TrueNAS via the API.
 from __future__ import annotations
 
 import time
+from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -27,20 +28,45 @@ CONFIG_SEARCH_PATHS = [
 
 EXAMPLE_CONFIG = """\
 host: 192.168.1.214:443
-api_key_file: ~/.secrets/truenas-api-key
+api_key: ~/.secrets/truenas-api-key  # file path or literal value
 skip_cert_verify: true
+# secrets: auto  # auto (default), files, or inline
 
 datasets:
   tank/syncthing: ~/.secrets/syncthing-key
-  tank/photos: ~/.secrets/photos-key
+  tank/photos: my-literal-passphrase
 """
+
+
+class SecretsMode(str, Enum):
+    """How to interpret secret values."""
+
+    auto = "auto"  # check if file exists, otherwise use as literal
+    files = "files"  # always treat as file paths
+    inline = "inline"  # always treat as literal values
+
+
+def resolve_secret(value: str, mode: SecretsMode) -> str:
+    """Resolve a secret value based on the secrets mode."""
+    if mode == SecretsMode.inline:
+        return value
+
+    path = Path(value).expanduser()
+
+    if mode == SecretsMode.files:
+        return path.read_text().strip()
+
+    # auto mode: check if file exists
+    if path.exists() and path.is_file():
+        return path.read_text().strip()
+    return value
 
 
 class Dataset(BaseModel):
     """A ZFS dataset to unlock."""
 
     path: str
-    passphrase_file: Path
+    secret: str  # file path or literal passphrase
 
     @property
     def pool(self) -> str:
@@ -50,31 +76,33 @@ class Dataset(BaseModel):
     def name(self) -> str:
         return "/".join(self.path.split("/")[1:])
 
-    def get_passphrase(self) -> str:
-        return self.passphrase_file.expanduser().read_text().strip()
+    def get_passphrase(self, mode: SecretsMode) -> str:
+        return resolve_secret(self.secret, mode)
 
 
 class Config(BaseModel):
     """Application configuration."""
 
     host: str
-    api_key_file: Path
+    api_key: str  # file path or literal value
     skip_cert_verify: bool = False
+    secrets: SecretsMode = SecretsMode.auto
     datasets: list[Dataset]
 
     def get_api_key(self) -> str:
-        return self.api_key_file.expanduser().read_text().strip()
+        return resolve_secret(self.api_key, self.secrets)
 
     @classmethod
     def from_yaml(cls, path: Path) -> Config:
         data = yaml.safe_load(path.read_text())
 
+        # Handle legacy api_key_file field
+        if "api_key_file" in data and "api_key" not in data:
+            data["api_key"] = data.pop("api_key_file")
+
         # Convert simple dict format to list of Dataset objects
         datasets_raw = data.pop("datasets", {})
-        datasets = [
-            Dataset(path=ds_path, passphrase_file=Path(passphrase_file))
-            for ds_path, passphrase_file in datasets_raw.items()
-        ]
+        datasets = [Dataset(path=ds_path, secret=secret) for ds_path, secret in datasets_raw.items()]
 
         return cls(datasets=datasets, **data)
 
@@ -127,6 +155,7 @@ class TrueNasClient:
     def unlock(self, dataset: Dataset) -> bool:
         """Unlock a dataset."""
         url = f"{self._base_url}/pool/dataset/unlock"
+        passphrase = dataset.get_passphrase(self.config.secrets)
         payload = {
             "id": dataset.path,
             "options": {
@@ -134,7 +163,7 @@ class TrueNasClient:
                 "recursive": False,
                 "force": True,
                 "toggle_attachments": True,
-                "datasets": [{"name": dataset.path, "passphrase": dataset.get_passphrase()}],
+                "datasets": [{"name": dataset.path, "passphrase": passphrase}],
             },
         }
 

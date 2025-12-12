@@ -2,12 +2,15 @@
 # Copy to ~/.config/truenas-unlock/config.yaml
 
 host: 192.168.1.214:443
-api_key_file: ~/.secrets/truenas-api-key
+api_key: ~/.secrets/truenas-api-key  # file path or literal value
 skip_cert_verify: true
+
+# secrets: auto  # auto (default) | files | inline
+#   - auto: if value is an existing file, read from it; otherwise use as literal
+#   - files: always treat values as file paths
+#   - inline: always treat values as literal secrets
 
 datasets:
   tank/syncthing: ~/.secrets/syncthing-key
   tank/frigate: ~/.secrets/frigate-key
-  tank/photos: ~/.secrets/photos-key
-  tank/photos_export: ~/.secrets/photos-export-key
-  tank/stash: ~/.secrets/stash-key
+  tank/photos: my-literal-passphrase  # or a file path

@@ -23,14 +23,20 @@ Create `~/.config/truenas-unlock/config.yaml`:
 
 ```yaml
 host: 192.168.1.214:443
-api_key_file: ~/.secrets/truenas-api-key
+api_key: ~/.secrets/truenas-api-key  # file path or literal
 skip_cert_verify: true
 
+# secrets: auto  # auto (default) | files | inline
+
 datasets:
-  tank/syncthing: ~/.secrets/syncthing-key
-  tank/frigate: ~/.secrets/frigate-key
-  tank/photos: ~/.secrets/photos-key
+  tank/syncthing: ~/.secrets/syncthing-key  # reads from file
+  tank/photos: my-literal-passphrase        # used as-is (no such file)
 ```
+
+The `secrets` mode controls how values are interpreted:
+- **auto** (default): if file exists, read from it; otherwise use as literal
+- **files**: always treat values as file paths
+- **inline**: always treat values as literal secrets
 
 ## Usage
 
