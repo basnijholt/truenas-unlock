@@ -1,12 +1,12 @@
 #!/bin/bash
 set -e
 
-PLIST_NAME="com.truenas_zfs_unlock.plist"
+PLIST_NAME="com.truenas_unlock.plist"
 PLIST_DST="$HOME/Library/LaunchAgents/$PLIST_NAME"
-LOG_DIR="$HOME/Library/Logs/truenas-zfs-unlock"
-PLIST_URL="https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/macos/$PLIST_NAME"
+LOG_DIR="$HOME/Library/Logs/truenas-unlock"
+PLIST_URL="https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/macos/$PLIST_NAME"
 
-echo "Installing TrueNAS ZFS Unlock service..."
+echo "Installing TrueNAS Unlock service..."
 
 # Find uv path
 UV_PATH=$(which uv 2>/dev/null || echo "")
@@ -42,4 +42,4 @@ echo "Service installed and started."
 echo "Logs: $LOG_DIR/"
 echo ""
 echo "To uninstall, run:"
-echo "  curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/macos/uninstall.sh | bash"
+echo "  curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/macos/uninstall.sh | bash"

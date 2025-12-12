@@ -1,7 +1,7 @@
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [TrueNAS ZFS Unlock](#truenas-zfs-unlock)
+- [TrueNAS Unlock](#truenas-unlock)
   - [Install](#install)
   - [Setup](#setup)
   - [Usage](#usage)
@@ -15,12 +15,12 @@
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
-# TrueNAS ZFS Unlock
+# TrueNAS Unlock
 
-[![PyPI](https://img.shields.io/pypi/v/truenas-zfs-unlock)](https://pypi.org/project/truenas-zfs-unlock/)
-[![Python](https://img.shields.io/pypi/pyversions/truenas-zfs-unlock)](https://pypi.org/project/truenas-zfs-unlock/)
-[![Tests](https://github.com/basnijholt/truenas-zfs-unlock/actions/workflows/test.yml/badge.svg)](https://github.com/basnijholt/truenas-zfs-unlock/actions/workflows/test.yml)
-[![License](https://img.shields.io/github/license/basnijholt/truenas-zfs-unlock)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/truenas-unlock)](https://pypi.org/project/truenas-unlock/)
+[![Python](https://img.shields.io/pypi/pyversions/truenas-unlock)](https://pypi.org/project/truenas-unlock/)
+[![Tests](https://github.com/basnijholt/truenas-unlock/actions/workflows/test.yml/badge.svg)](https://github.com/basnijholt/truenas-unlock/actions/workflows/test.yml)
+[![License](https://img.shields.io/github/license/basnijholt/truenas-unlock)](LICENSE)
 
 Unlock encrypted ZFS datasets on TrueNAS via the API.
 
@@ -28,10 +28,10 @@ Unlock encrypted ZFS datasets on TrueNAS via the API.
 
 ```bash
 # With uv (recommended)
-uv tool install truenas-zfs-unlock
+uv tool install truenas-unlock
 
 # With pip
-pip install truenas-zfs-unlock
+pip install truenas-unlock
 ```
 
 ## Setup
@@ -59,22 +59,22 @@ The `secrets` mode controls how values are interpreted:
 
 ```bash
 # Run once
-truenas-zfs-unlock
+truenas-unlock
 
 # Run as daemon (every 10 seconds)
-truenas-zfs-unlock --daemon
+truenas-unlock --daemon
 
 # Custom interval
-truenas-zfs-unlock --daemon --interval 30
+truenas-unlock --daemon --interval 30
 
 # Dry run
-truenas-zfs-unlock --dry-run
+truenas-unlock --dry-run
 ```
 
 ## CLI
 
 ```bash
-truenas-zfs-unlock --help
+truenas-unlock --help
 ```
 
 <!-- CODE:BASH:START -->
@@ -82,7 +82,7 @@ truenas-zfs-unlock --help
 <!-- export TERM=dumb -->
 <!-- export TERMINAL_WIDTH=90 -->
 <!-- echo '```bash' -->
-<!-- truenas-zfs-unlock --help -->
+<!-- truenas-unlock --help -->
 <!-- echo '```' -->
 <!-- CODE:END -->
 
@@ -100,19 +100,19 @@ truenas-zfs-unlock --help
 Install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/linux/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/linux/install.sh | bash
 ```
 
 View logs:
 
 ```bash
-journalctl --user -u truenas-zfs-unlock -f
+journalctl --user -u truenas-unlock -f
 ```
 
 Uninstall:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/linux/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/linux/uninstall.sh | bash
 ```
 
 ### macOS (launchd)
@@ -120,27 +120,27 @@ curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/
 Install:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/macos/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/macos/install.sh | bash
 ```
 
 View logs:
 
 ```bash
-tail -f ~/Library/Logs/truenas-zfs-unlock/*.out ~/Library/Logs/truenas-zfs-unlock/*.err
+tail -f ~/Library/Logs/truenas-unlock/*.out ~/Library/Logs/truenas-unlock/*.err
 ```
 
 Uninstall:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/macos/uninstall.sh | bash
+curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/macos/uninstall.sh | bash
 ```
 
 ## Development
 
 ```bash
 # Clone and install
-git clone https://github.com/basnijholt/truenas-zfs-unlock
-cd truenas-zfs-unlock
+git clone https://github.com/basnijholt/truenas-unlock
+cd truenas-unlock
 uv sync --dev
 
 # Run tests
@@ -148,12 +148,12 @@ uv run pytest
 
 # Run lints
 uv run ruff check .
-uv run mypy truenas_zfs_unlock.py
+uv run mypy truenas_unlock.py
 ```
 
 ## Credits
 
-Inspired by [ThorpeJosh/truenas-zfs-unlock](https://github.com/ThorpeJosh/truenas-zfs-unlock).
+Inspired by [ThorpeJosh/truenas-unlock](https://github.com/ThorpeJosh/truenas-unlock).
 
 ## License
 

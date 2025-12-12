@@ -32,7 +32,7 @@ repos:
             language: system
             types: [python]
             pass_filenames: false
-            args: [truenas_zfs_unlock.py]
+            args: [truenas_unlock.py]
           - id: pytest
             name: pytest
             entry: uv run pytest

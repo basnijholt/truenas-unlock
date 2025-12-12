@@ -3,13 +3,13 @@
 <plist version="1.0">
 <dict>
   <key>Label</key>
-  <string>com.truenas_zfs_unlock</string>
+  <string>com.truenas_unlock</string>
   <key>ProgramArguments</key>
   <array>
     <string><UV-PATH></string>
     <string>tool</string>
     <string>run</string>
-    <string>truenas-zfs-unlock</string>
+    <string>truenas-unlock</string>
     <string>--daemon</string>
   </array>
   <key>RunAtLoad</key>
@@ -19,8 +19,8 @@
   <key>WorkingDirectory</key>
   <string><HOME-DIR></string>
   <key>StandardOutPath</key>
-  <string><LOG-DIR>/truenas-zfs-unlock.out</string>
+  <string><LOG-DIR>/truenas-unlock.out</string>
   <key>StandardErrorPath</key>
-  <string><LOG-DIR>/truenas-zfs-unlock.err</string>
+  <string><LOG-DIR>/truenas-unlock.err</string>
 </dict>
 </plist>

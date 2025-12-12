@@ -1,11 +1,11 @@
 #!/bin/bash
 set -e
 
-SERVICE_NAME="truenas-zfs-unlock.service"
+SERVICE_NAME="truenas-unlock.service"
 SERVICE_DST="$HOME/.config/systemd/user/$SERVICE_NAME"
-SERVICE_URL="https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/linux/$SERVICE_NAME"
+SERVICE_URL="https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/linux/$SERVICE_NAME"
 
-echo "Installing TrueNAS ZFS Unlock service..."
+echo "Installing TrueNAS Unlock service..."
 
 # Find uv path
 UV_PATH=$(which uv 2>/dev/null || echo "")
@@ -32,16 +32,16 @@ curl -fsSL "$SERVICE_URL" | \
 
 # Reload and enable
 systemctl --user daemon-reload
-systemctl --user enable --now truenas-zfs-unlock
+systemctl --user enable --now truenas-unlock
 
 echo ""
 echo "Service installed and started."
 echo ""
 echo "View logs:"
-echo "  journalctl --user -u truenas-zfs-unlock -f"
+echo "  journalctl --user -u truenas-unlock -f"
 echo ""
 echo "To run at boot (without login):"
 echo "  sudo loginctl enable-linger \$USER"
 echo ""
 echo "To uninstall, run:"
-echo "  curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-zfs-unlock/main/scripts/linux/uninstall.sh | bash"
+echo "  curl -fsSL https://raw.githubusercontent.com/basnijholt/truenas-unlock/main/scripts/linux/uninstall.sh | bash"

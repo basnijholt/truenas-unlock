@@ -664,7 +664,7 @@ wheels = [
 ]
 
 [[package]]
-name = "truenas-zfs-unlock"
+name = "truenas-unlock"
 version = "3.0.0"
 source = { editable = "." }
 dependencies = [

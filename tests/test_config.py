@@ -5,7 +5,7 @@ from textwrap import dedent
 
 import pytest
 
-from truenas_zfs_unlock import Config, Dataset, SecretsMode, resolve_secret
+from truenas_unlock import Config, Dataset, SecretsMode, resolve_secret
 
 
 class TestResolveSecret:

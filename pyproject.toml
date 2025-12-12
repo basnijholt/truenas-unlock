@@ -1,5 +1,5 @@
 [project]
-name = "truenas-zfs-unlock"
+name = "truenas-unlock"
 version = "3.0.0"
 description = "Unlock encrypted ZFS datasets on TrueNAS via the API"
 readme = "README.md"
@@ -29,12 +29,12 @@ dependencies = [
 ]
 
 [project.scripts]
-truenas-zfs-unlock = "truenas_zfs_unlock:app"
+truenas-unlock = "truenas_unlock:app"
 
 [project.urls]
-Homepage = "https://github.com/basnijholt/truenas-zfs-unlock"
-Repository = "https://github.com/basnijholt/truenas-zfs-unlock"
-Issues = "https://github.com/basnijholt/truenas-zfs-unlock/issues"
+Homepage = "https://github.com/basnijholt/truenas-unlock"
+Repository = "https://github.com/basnijholt/truenas-unlock"
+Issues = "https://github.com/basnijholt/truenas-unlock/issues"
 
 [build-system]
 requires = ["hatchling"]
