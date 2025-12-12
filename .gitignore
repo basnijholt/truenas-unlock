@@ -149,6 +149,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
+# hatch-vcs generated version file
+_version.py
+
 # pytype static type analyzer
 .pytype/
 

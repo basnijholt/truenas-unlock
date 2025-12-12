@@ -1,6 +1,6 @@
 [project]
 name = "truenas-unlock"
-version = "3.0.0"
+dynamic = ["version"]
 description = "Unlock encrypted ZFS datasets on TrueNAS via the API"
 readme = "README.md"
 license = { text = "MIT" }
@@ -37,8 +37,14 @@ Repository = "https://github.com/basnijholt/truenas-unlock"
 Issues = "https://github.com/basnijholt/truenas-unlock/issues"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.hooks.vcs]
+version-file = "_version.py"
 
 [dependency-groups]
 dev = [
