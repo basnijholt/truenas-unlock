@@ -121,6 +121,7 @@ truenas-unlock --help
 │ --interval  -i      INTEGER  Seconds between checks (1s if unreachable)      │
 │                              [default: 30]                                   │
 │ --dataset   -D      TEXT     Filter by dataset path                          │
+│ --version   -v               Show version and exit                           │
 │ --help      -h               Show this message and exit.                     │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ╭─ Commands ───────────────────────────────────────────────────────────────────╮
