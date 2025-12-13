@@ -231,6 +231,29 @@ class TrueNasClient:
         console.print(f"[blue]→[/blue] Unlocked {dataset.path}")
         return True
 
+    def lock(self, dataset: Dataset, *, force: bool = False) -> bool:
+        """Lock a dataset."""
+        url = f"{self._base_url}/pool/dataset/lock"
+        payload = {
+            "id": dataset.path,
+            "lock_options": {
+                "force_umount": force,
+            },
+        }
+
+        try:
+            response = self.client.post(url, headers=self._headers, json=payload)
+        except httpx.RequestError as e:
+            err_console.print(f"[red]Error: {e}[/red]")
+            return False
+
+        if response.status_code != 200:
+            err_console.print(f"[red]API error {response.status_code}: {response.text}[/red]")
+            return False
+
+        console.print(f"[yellow]🔒[/yellow] Locked {dataset.path}")
+        return True
+
 
 def find_config() -> Path | None:
     """Find config file in standard locations."""
@@ -253,6 +276,17 @@ def run_unlock(config: Config, *, dry_run: bool = False, quiet: bool = False) ->
         if client.is_locked(dataset, quiet=quiet):
             console.print(f"[yellow]⚡[/yellow] {dataset.path} locked, unlocking...")
             client.unlock(dataset)
+
+
+def run_lock(config: Config, *, force: bool = False) -> None:
+    """Lock all configured datasets."""
+    client = TrueNasClient(config)
+    for dataset in config.datasets:
+        locked = client.is_locked(dataset, quiet=True)
+        if locked is False:
+            client.lock(dataset, force=force)
+        elif locked is True:
+            console.print(f"[dim]Already locked: {dataset.path}[/dim]")
 
 
 app = typer.Typer(
@@ -442,6 +476,24 @@ def service_logs(
     else:
         err_console.print(f"[red]Unsupported OS: {system}[/red]")
         raise typer.Exit(1)
+
+
+@app.command()
+def lock(
+    config_path: Annotated[Path | None, typer.Option("--config", "-c", help="Config file path")] = None,
+    force: Annotated[bool, typer.Option("--force", "-f", help="Force unmount before locking")] = False,
+) -> None:
+    """Lock all configured datasets."""
+    if config_path is None:
+        config_path = find_config()
+
+    if config_path is None or not config_path.exists():
+        err_console.print("[red]Config not found.[/red]")
+        raise typer.Exit(1)
+
+    config = Config.from_yaml(config_path)
+    console.print(f"[dim]{config_path}[/dim]")
+    run_lock(config, force=force)
 
 
 @app.callback(invoke_without_command=True)
