@@ -25,6 +25,8 @@ This tool solves both problems with a **"poor-man's second-factor"** setup:
 
 Think of it as a hardware security key for your storage—hidden somewhere in your house, it automatically unlocks your datasets whenever your TrueNAS boots. No manual intervention required.
 
+## Table of Contents
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
