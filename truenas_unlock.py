@@ -5,6 +5,7 @@ Unlocks encrypted ZFS datasets on TrueNAS via the API.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import platform
 import shutil
@@ -158,14 +159,29 @@ class Config(BaseModel):
 
 
 class TrueNasClient:
-    """Client for TrueNAS API operations."""
+    """Async client for TrueNAS API operations."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
-        self.client = httpx.Client(
+        self._client: httpx.AsyncClient | None = None
+
+    async def __aenter__(self) -> TrueNasClient:
+        self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(connect=3.0, read=30.0, write=30.0, pool=5.0),
-            verify=not config.skip_cert_verify,
+            verify=not self.config.skip_cert_verify,
         )
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        if self._client:
+            await self._client.aclose()
+
+    @property
+    def client(self) -> httpx.AsyncClient:
+        if self._client is None:
+            msg = "Client not initialized. Use 'async with TrueNasClient(...):'"
+            raise RuntimeError(msg)
+        return self._client
 
     @property
     def _headers(self) -> dict[str, str]:
@@ -175,12 +191,12 @@ class TrueNasClient:
     def _base_url(self) -> str:
         return f"https://{self.config.host}/api/v2.0"
 
-    def is_locked(self, dataset: Dataset, *, quiet: bool = False) -> bool | None:
+    async def is_locked(self, dataset: Dataset, *, quiet: bool = False) -> bool | None:
         """Check if a dataset is locked."""
         url = f"{self._base_url}/pool/dataset?id={dataset.path}"
 
         try:
-            response = self.client.get(url, headers=self._headers)
+            response = await self.client.get(url, headers=self._headers)
         except httpx.RequestError as e:
             err_console.print(f"[red]Error: {e}[/red]")
             return None
@@ -203,7 +219,7 @@ class TrueNasClient:
             return False
         return None
 
-    def unlock(self, dataset: Dataset) -> bool:
+    async def unlock(self, dataset: Dataset) -> bool:
         """Unlock a dataset."""
         url = f"{self._base_url}/pool/dataset/unlock"
         passphrase = dataset.get_passphrase(self.config.secrets)
@@ -219,7 +235,7 @@ class TrueNasClient:
         }
 
         try:
-            response = self.client.post(url, headers=self._headers, json=payload)
+            response = await self.client.post(url, headers=self._headers, json=payload)
         except httpx.RequestError as e:
             err_console.print(f"[red]Error: {e}[/red]")
             return False
@@ -231,7 +247,14 @@ class TrueNasClient:
         console.print(f"[blue]→[/blue] Unlocked {dataset.path}")
         return True
 
-    def lock(self, dataset: Dataset, *, force: bool = False) -> bool:
+    async def check_and_unlock(self, dataset: Dataset, *, quiet: bool = False) -> bool:
+        """Check if locked and unlock if needed. Returns True if unlocked."""
+        if await self.is_locked(dataset, quiet=quiet):
+            console.print(f"[yellow]⚡[/yellow] {dataset.path} locked, unlocking...")
+            return await self.unlock(dataset)
+        return False
+
+    async def lock(self, dataset: Dataset, *, force: bool = False) -> bool:
         """Lock a dataset."""
         url = f"{self._base_url}/pool/dataset/lock"
         payload = {
@@ -242,7 +265,7 @@ class TrueNasClient:
         }
 
         try:
-            response = self.client.post(url, headers=self._headers, json=payload)
+            response = await self.client.post(url, headers=self._headers, json=payload)
         except httpx.RequestError as e:
             err_console.print(f"[red]Error: {e}[/red]")
             return False
@@ -270,14 +293,14 @@ def filter_datasets(datasets: list[Dataset], filters: list[str] | None) -> list[
     return [ds for ds in datasets if any(f in ds.path for f in filters)]
 
 
-def run_unlock(
+async def run_unlock(
     config: Config,
     *,
     dry_run: bool = False,
     quiet: bool = False,
     dataset_filters: list[str] | None = None,
 ) -> None:
-    """Run the unlock process once."""
+    """Run the unlock process once, checking all datasets in parallel."""
     datasets = filter_datasets(config.datasets, dataset_filters)
 
     if not datasets:
@@ -290,47 +313,50 @@ def run_unlock(
             console.print(f"  • {ds.path}")
         return
 
-    client = TrueNasClient(config)
-    for dataset in datasets:
-        if client.is_locked(dataset, quiet=quiet):
-            console.print(f"[yellow]⚡[/yellow] {dataset.path} locked, unlocking...")
-            client.unlock(dataset)
+    async with TrueNasClient(config) as client:
+        await asyncio.gather(*[client.check_and_unlock(ds, quiet=quiet) for ds in datasets])
 
 
-def run_lock(config: Config, *, force: bool = False, dataset_filters: list[str] | None = None) -> None:
-    """Lock all configured datasets."""
+async def run_lock(
+    config: Config, *, force: bool = False, dataset_filters: list[str] | None = None
+) -> None:
+    """Lock all configured datasets in parallel."""
     datasets = filter_datasets(config.datasets, dataset_filters)
 
     if not datasets:
         err_console.print("[yellow]No matching datasets found.[/yellow]")
         return
 
-    client = TrueNasClient(config)
-    for dataset in datasets:
-        locked = client.is_locked(dataset, quiet=True)
+    async def lock_if_unlocked(client: TrueNasClient, dataset: Dataset) -> None:
+        locked = await client.is_locked(dataset, quiet=True)
         if locked is False:
-            client.lock(dataset, force=force)
+            await client.lock(dataset, force=force)
         elif locked is True:
             console.print(f"[dim]Already locked: {dataset.path}[/dim]")
 
+    async with TrueNasClient(config) as client:
+        await asyncio.gather(*[lock_if_unlocked(client, ds) for ds in datasets])
 
-def run_status(config: Config, *, dataset_filters: list[str] | None = None) -> None:
-    """Show lock status of all configured datasets."""
+
+async def run_status(config: Config, *, dataset_filters: list[str] | None = None) -> None:
+    """Show lock status of all configured datasets in parallel."""
     datasets = filter_datasets(config.datasets, dataset_filters)
 
     if not datasets:
         err_console.print("[yellow]No matching datasets found.[/yellow]")
         return
 
-    client = TrueNasClient(config)
-    for dataset in datasets:
-        locked = client.is_locked(dataset, quiet=True)
+    async def check_status(client: TrueNasClient, dataset: Dataset) -> None:
+        locked = await client.is_locked(dataset, quiet=True)
         if locked is True:
             console.print(f"[yellow]🔒[/yellow] {dataset.path} [dim]locked[/dim]")
         elif locked is False:
             console.print(f"[green]🔓[/green] {dataset.path} [dim]unlocked[/dim]")
         else:
             console.print(f"[red]?[/red] {dataset.path} [dim]unknown[/dim]")
+
+    async with TrueNasClient(config) as client:
+        await asyncio.gather(*[check_status(client, ds) for ds in datasets])
 
 
 app = typer.Typer(
@@ -538,7 +564,7 @@ def lock(
 
     config = Config.from_yaml(config_path)
     console.print(f"[dim]{config_path}[/dim]")
-    run_lock(config, force=force, dataset_filters=dataset)
+    asyncio.run(run_lock(config, force=force, dataset_filters=dataset))
 
 
 @app.command()
@@ -556,7 +582,7 @@ def status(
 
     config = Config.from_yaml(config_path)
     console.print(f"[dim]{config_path}[/dim]")
-    run_status(config, dataset_filters=dataset)
+    asyncio.run(run_status(config, dataset_filters=dataset))
 
 
 @app.callback(invoke_without_command=True)
@@ -589,13 +615,13 @@ def main(
         console.print(f"[bold]Running every {interval}s[/bold]")
         while True:
             try:
-                run_unlock(config, dry_run=dry_run, quiet=True, dataset_filters=dataset)
+                asyncio.run(run_unlock(config, dry_run=dry_run, quiet=True, dataset_filters=dataset))
                 time.sleep(interval)
             except KeyboardInterrupt:
                 console.print("\n[bold]Stopped[/bold]")
                 break
     else:
-        run_unlock(config, dry_run=dry_run, dataset_filters=dataset)
+        asyncio.run(run_unlock(config, dry_run=dry_run, dataset_filters=dataset))
 
 
 if __name__ == "__main__":
