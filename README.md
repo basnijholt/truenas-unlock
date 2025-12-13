@@ -78,11 +78,12 @@ The `secrets` mode controls how values are interpreted:
 # Run once
 truenas-unlock
 
-# Run as daemon (every 10 seconds)
+# Run as daemon
+# (Checks every 1s if TrueNAS is unreachable, otherwise every 30s)
 truenas-unlock --daemon
 
-# Custom interval
-truenas-unlock --daemon --interval 30
+# Custom interval (for the "relaxed" state)
+truenas-unlock --daemon --interval 60
 
 # Dry run
 truenas-unlock --dry-run
