@@ -167,7 +167,7 @@ class TrueNasClient:
 
     async def __aenter__(self) -> TrueNasClient:
         self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=3.0, read=30.0, write=30.0, pool=5.0),
+            timeout=httpx.Timeout(connect=2.0, read=10.0, write=10.0, pool=5.0),
             verify=not self.config.skip_cert_verify,
         )
         return self
@@ -198,11 +198,13 @@ class TrueNasClient:
         try:
             response = await self.client.get(url, headers=self._headers)
         except httpx.RequestError as e:
-            err_console.print(f"[red]Error: {e}[/red]")
+            if not quiet:
+                err_console.print(f"[red]Error: {e}[/red]")
             return None
 
         if response.status_code != 200:
-            err_console.print(f"[red]API error {response.status_code}[/red]")
+            if not quiet:
+                err_console.print(f"[red]API error {response.status_code}[/red]")
             return None
 
         try:
@@ -249,7 +251,11 @@ class TrueNasClient:
 
     async def check_and_unlock(self, dataset: Dataset, *, quiet: bool = False) -> bool:
         """Check if locked and unlock if needed. Returns True if unlocked."""
-        if await self.is_locked(dataset, quiet=quiet):
+        locked = await self.is_locked(dataset, quiet=quiet)
+        if locked is None:
+            raise ConnectionError("Failed to check lock status")
+
+        if locked:
             console.print(f"[yellow]⚡[/yellow] {dataset.path} locked, unlocking...")
             return await self.unlock(dataset)
         return False
@@ -299,22 +305,42 @@ async def run_unlock(
     dry_run: bool = False,
     quiet: bool = False,
     dataset_filters: list[str] | None = None,
-) -> None:
-    """Run the unlock process once, checking all datasets in parallel."""
+) -> bool:
+    """Run the unlock process once. Returns True if connection succeeded and checks were performed."""
     datasets = filter_datasets(config.datasets, dataset_filters)
 
     if not datasets:
         err_console.print("[yellow]No matching datasets found.[/yellow]")
-        return
+        return True
 
     if dry_run:
         console.print("[yellow]Dry run:[/yellow]")
         for ds in datasets:
             console.print(f"  • {ds.path}")
-        return
+        return True
 
-    async with TrueNasClient(config) as client:
-        await asyncio.gather(*[client.check_and_unlock(ds, quiet=quiet) for ds in datasets])
+    try:
+        async with TrueNasClient(config) as client:
+            results = await asyncio.gather(
+                *[client.check_and_unlock(ds, quiet=quiet) for ds in datasets], return_exceptions=True
+            )
+
+            # Check for connection errors in results
+            for res in results:
+                if isinstance(res, ConnectionError | httpx.RequestError):
+                    return False
+                if isinstance(res, Exception):
+                    if not quiet:
+                        err_console.print(f"[red]Error: {res}[/red]")
+                    return False
+            return True
+
+    except (httpx.RequestError, ConnectionError):
+        return False
+    except Exception as e:
+        if not quiet:
+            err_console.print(f"[red]Unexpected error: {e}[/red]")
+        return False
 
 
 async def run_lock(config: Config, *, force: bool = False, dataset_filters: list[str] | None = None) -> None:
@@ -589,7 +615,7 @@ def main(
     config_path: Annotated[Path | None, typer.Option("--config", "-c", help="Config file path")] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", "-n", help="Show what would be done")] = False,
     daemon: Annotated[bool, typer.Option("--daemon", "-d", help="Run continuously")] = False,
-    interval: Annotated[int, typer.Option("--interval", "-i", help="Seconds between runs")] = 10,
+    interval: Annotated[int, typer.Option("--interval", "-i", help="Seconds between runs")] = 30,
     dataset: Annotated[list[str] | None, typer.Option("--dataset", "-D", help="Filter by dataset path")] = None,
 ) -> None:
     """Unlock encrypted ZFS datasets on TrueNAS."""
@@ -610,11 +636,32 @@ def main(
     console.print(f"[dim]{config_path}[/dim]")
 
     if daemon:
-        console.print(f"[bold]Running every {interval}s[/bold]")
+        console.print(f"[bold]Running with smart polling (interval: {interval}s)[/bold]")
+        current_interval = interval
+        last_success = True
+
         while True:
             try:
-                asyncio.run(run_unlock(config, dry_run=dry_run, quiet=True, dataset_filters=dataset))
-                time.sleep(interval)
+                success = asyncio.run(run_unlock(config, dry_run=dry_run, quiet=True, dataset_filters=dataset))
+
+                # Logic for smart polling:
+                # - If failed (False), panic mode -> 1s interval
+                # - If succeeded (True), relax -> standard interval
+
+                if success:
+                    if not last_success:
+                        console.print("[green]Connection restored.[/green]")
+                    current_interval = interval
+                else:
+                    if last_success:
+                        console.print(
+                            "[yellow]Connection lost/unstable. Switching to panic mode (1s interval).[/yellow]"
+                        )
+                    current_interval = 1
+
+                last_success = success
+                time.sleep(current_interval)
+
             except KeyboardInterrupt:
                 console.print("\n[bold]Stopped[/bold]")
                 break
