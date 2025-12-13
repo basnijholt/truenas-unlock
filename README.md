@@ -9,6 +9,19 @@ Unlock encrypted ZFS datasets on TrueNAS via the API.
 
 https://github.com/user-attachments/assets/172c8fd7-5b66-4c5b-bae0-32e378e9305a
 
+## Why?
+
+TrueNAS supports encrypted ZFS datasets, but storing encryption keys on the same machine defeats the purpose—if the NAS is stolen, the thief has both the encrypted data and the keys.
+
+This tool enables a **"poor-man's second-factor"** setup:
+
+1. Run `truenas-unlock` on a **separate device** (Raspberry Pi, home server, etc.)
+2. Store encryption keys **only on that device**
+3. Datasets auto-unlock when both devices are on the network
+4. If the NAS is stolen, data remains encrypted and inaccessible
+
+Think of it as a hardware security key for your storage—hidden somewhere in your house, it automatically unlocks your datasets when your TrueNAS boots.
+
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
