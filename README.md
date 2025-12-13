@@ -115,7 +115,7 @@ truenas-unlock --help
 │ --config    -c      PATH     Config file path                                │
 │ --dry-run   -n               Show what would be done                         │
 │ --daemon    -d               Run continuously                                │
-│ --interval  -i      INTEGER  Seconds between runs [default: 10]              │
+│ --interval  -i      INTEGER  Seconds between runs [default: 30]              │
 │ --dataset   -D      TEXT     Filter by dataset path                          │
 │ --help      -h               Show this message and exit.                     │
 ╰──────────────────────────────────────────────────────────────────────────────╯
