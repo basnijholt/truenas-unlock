@@ -51,7 +51,9 @@ pip install truenas-unlock
 
 ## Setup
 
-Create `~/.config/truenas-unlock/config.yaml`:
+Create an API key at `http://truenas.local/ui/credentials/users/api-keys` (replace with your TrueNAS hostname).
+
+Then create `~/.config/truenas-unlock/config.yaml`:
 
 ```yaml
 host: 192.168.1.214:443
