@@ -615,7 +615,7 @@ def main(
     config_path: Annotated[Path | None, typer.Option("--config", "-c", help="Config file path")] = None,
     dry_run: Annotated[bool, typer.Option("--dry-run", "-n", help="Show what would be done")] = False,
     daemon: Annotated[bool, typer.Option("--daemon", "-d", help="Run continuously")] = False,
-    interval: Annotated[int, typer.Option("--interval", "-i", help="Seconds between runs")] = 30,
+    interval: Annotated[int, typer.Option("--interval", "-i", help="Seconds between checks (1s if unreachable)")] = 30,
     dataset: Annotated[list[str] | None, typer.Option("--dataset", "-D", help="Filter by dataset path")] = None,
 ) -> None:
     """Unlock encrypted ZFS datasets on TrueNAS."""
