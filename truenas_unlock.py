@@ -175,7 +175,7 @@ class TrueNasClient:
     def _base_url(self) -> str:
         return f"https://{self.config.host}/api/v2.0"
 
-    def is_locked(self, dataset: Dataset) -> bool | None:
+    def is_locked(self, dataset: Dataset, *, quiet: bool = False) -> bool | None:
         """Check if a dataset is locked."""
         url = f"{self._base_url}/pool/dataset?id={dataset.path}"
 
@@ -198,7 +198,8 @@ class TrueNasClient:
         if locked is True:
             return True
         if locked is False:
-            console.print(f"[green]✓[/green] {dataset.path}")
+            if not quiet:
+                console.print(f"[green]✓[/green] {dataset.path}")
             return False
         return None
 
@@ -239,7 +240,7 @@ def find_config() -> Path | None:
     return None
 
 
-def run_unlock(config: Config, *, dry_run: bool = False) -> None:
+def run_unlock(config: Config, *, dry_run: bool = False, quiet: bool = False) -> None:
     """Run the unlock process once."""
     if dry_run:
         console.print("[yellow]Dry run:[/yellow]")
@@ -249,7 +250,7 @@ def run_unlock(config: Config, *, dry_run: bool = False) -> None:
 
     client = TrueNasClient(config)
     for dataset in config.datasets:
-        if client.is_locked(dataset):
+        if client.is_locked(dataset, quiet=quiet):
             console.print(f"[yellow]⚡[/yellow] {dataset.path} locked, unlocking...")
             client.unlock(dataset)
 
@@ -472,7 +473,7 @@ def main(
         console.print(f"[bold]Running every {interval}s[/bold]")
         while True:
             try:
-                run_unlock(config, dry_run=dry_run)
+                run_unlock(config, dry_run=dry_run, quiet=True)
                 time.sleep(interval)
             except KeyboardInterrupt:
                 console.print("\n[bold]Stopped[/bold]")
