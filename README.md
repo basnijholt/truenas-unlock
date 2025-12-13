@@ -110,7 +110,7 @@ truenas-unlock --help
 
 ## Running as a Service
 
-Auto-detects Linux (systemd) or macOS (launchd):
+Requires [uv](https://docs.astral.sh/uv/) to be installed. Auto-detects Linux (systemd) or macOS (launchd):
 
 ```bash
 # Install and start
