@@ -22,7 +22,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "httpx>=0.25",
+    "websocket-client>=1.6",
     "pydantic>=2.0",
     "typer>=0.9",
     "rich>=13.0",

@@ -5,21 +5,23 @@ Unlocks encrypted ZFS datasets on TrueNAS via the API.
 
 from __future__ import annotations
 
-import asyncio
+import json
 import os
 import platform
 import shutil
+import ssl
 import subprocess
 import time
+import uuid
 from enum import Enum
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
-import httpx
 import typer
 import yaml
 from pydantic import BaseModel
 from rich.console import Console
+from websocket import WebSocket
 
 console = Console()
 err_console = Console(stderr=True)
@@ -158,57 +160,104 @@ class Config(BaseModel):
         return cls(datasets=datasets, **data)
 
 
+class TrueNASWebSocketClient:
+    """Minimal websocket client for TrueNAS API."""
+
+    def __init__(self, host: str, *, verify_ssl: bool = True, timeout: float = 30.0) -> None:
+        self.host = host
+        self.verify_ssl = verify_ssl
+        self.timeout = timeout
+        self._ws: WebSocket | None = None
+
+    def connect(self) -> None:
+        """Connect to TrueNAS websocket API."""
+        self._ws = WebSocket(sslopt={"cert_reqs": ssl.CERT_REQUIRED if self.verify_ssl else ssl.CERT_NONE})
+        self._ws.settimeout(self.timeout)
+        self._ws.connect(f"wss://{self.host}/websocket")  # type: ignore[no-untyped-call]
+
+        # Send connect handshake
+        self._send({"msg": "connect", "version": "1", "support": ["1"]})
+
+        # Wait for connected response
+        response = self._recv()
+        if response.get("msg") != "connected":
+            msg = f"Connection failed: {response}"
+            raise ConnectionError(msg)
+
+    def close(self) -> None:
+        """Close the websocket connection."""
+        if self._ws:
+            self._ws.close()
+            self._ws = None
+
+    def call(self, method: str, *params: Any) -> Any:
+        """Call a TrueNAS API method."""
+        if not self._ws:
+            msg = "Not connected"
+            raise ConnectionError(msg)
+
+        call_id = str(uuid.uuid4())
+        self._send({"msg": "method", "method": method, "id": call_id, "params": list(params)})
+
+        response = self._recv()
+        if response.get("id") != call_id:
+            msg = f"Response ID mismatch: expected {call_id}, got {response.get('id')}"
+            raise ConnectionError(msg)
+
+        if "error" in response:
+            error = response["error"]
+            msg = f"{error.get('reason', 'Unknown error')}"
+            raise Exception(msg)
+
+        return response.get("result")
+
+    def _send(self, data: dict[str, Any]) -> None:
+        if not self._ws:
+            msg = "Not connected"
+            raise ConnectionError(msg)
+        self._ws.send(json.dumps(data))
+
+    def _recv(self) -> dict[str, Any]:
+        if not self._ws:
+            msg = "Not connected"
+            raise ConnectionError(msg)
+        return json.loads(self._ws.recv())  # type: ignore[no-any-return]
+
+
 class TrueNasClient:
-    """Async client for TrueNAS API operations."""
+    """Client for TrueNAS API operations via websocket."""
 
     def __init__(self, config: Config) -> None:
         self.config = config
-        self._client: httpx.AsyncClient | None = None
+        self._client: TrueNASWebSocketClient | None = None
 
-    async def __aenter__(self) -> TrueNasClient:
-        self._client = httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=3.0, read=30.0, write=30.0, pool=5.0),
-            verify=not self.config.skip_cert_verify,
+    def __enter__(self) -> TrueNasClient:
+        self._client = TrueNASWebSocketClient(
+            self.config.host,
+            verify_ssl=not self.config.skip_cert_verify,
         )
+        self._client.connect()
+        self._client.call("auth.login_with_api_key", self.config.get_api_key())
         return self
 
-    async def __aexit__(self, *args: object) -> None:
+    def __exit__(self, *args: object) -> None:
         if self._client:
-            await self._client.aclose()
+            self._client.close()
 
     @property
-    def client(self) -> httpx.AsyncClient:
+    def client(self) -> TrueNASWebSocketClient:
         if self._client is None:
-            msg = "Client not initialized. Use 'async with TrueNasClient(...):'"
+            msg = "Client not initialized. Use 'with TrueNasClient(...):'"
             raise RuntimeError(msg)
         return self._client
 
-    @property
-    def _headers(self) -> dict[str, str]:
-        return {"Authorization": f"Bearer {self.config.get_api_key()}"}
-
-    @property
-    def _base_url(self) -> str:
-        return f"https://{self.config.host}/api/v2.0"
-
-    async def is_locked(self, dataset: Dataset, *, quiet: bool = False) -> bool | None:
+    def is_locked(self, dataset: Dataset, *, quiet: bool = False) -> bool | None:
         """Check if a dataset is locked."""
-        url = f"{self._base_url}/pool/dataset?id={dataset.path}"
-
         try:
-            response = await self.client.get(url, headers=self._headers)
-        except httpx.RequestError as e:
+            data = self.client.call("pool.dataset.get_instance", dataset.path)
+            locked = data.get("locked")
+        except Exception as e:
             err_console.print(f"[red]Error: {e}[/red]")
-            return None
-
-        if response.status_code != 200:
-            err_console.print(f"[red]API error {response.status_code}[/red]")
-            return None
-
-        try:
-            data = response.json()
-            locked = data[0].get("locked") if data else None
-        except (ValueError, KeyError, IndexError):
             return None
 
         if locked is True:
@@ -219,59 +268,41 @@ class TrueNasClient:
             return False
         return None
 
-    async def unlock(self, dataset: Dataset) -> bool:
+    def unlock(self, dataset: Dataset) -> bool:
         """Unlock a dataset."""
-        url = f"{self._base_url}/pool/dataset/unlock"
         passphrase = dataset.get_passphrase(self.config.secrets)
-        payload = {
-            "id": dataset.path,
-            "options": {
-                "key_file": False,
-                "recursive": False,
-                "force": True,
-                "toggle_attachments": True,
-                "datasets": [{"name": dataset.path, "passphrase": passphrase}],
-            },
+        options = {
+            "key_file": False,
+            "recursive": False,
+            "force": True,
+            "toggle_attachments": True,
+            "datasets": [{"name": dataset.path, "passphrase": passphrase}],
         }
 
         try:
-            response = await self.client.post(url, headers=self._headers, json=payload)
-        except httpx.RequestError as e:
-            err_console.print(f"[red]Error: {e}[/red]")
-            return False
-
-        if response.status_code != 200:
-            err_console.print(f"[red]API error {response.status_code}[/red]")
+            self.client.call("pool.dataset.unlock", dataset.path, options)
+        except Exception as e:
+            err_console.print(f"[red]Error unlocking {dataset.path}: {e}[/red]")
             return False
 
         console.print(f"[blue]→[/blue] Unlocked {dataset.path}")
         return True
 
-    async def check_and_unlock(self, dataset: Dataset, *, quiet: bool = False) -> bool:
+    def check_and_unlock(self, dataset: Dataset, *, quiet: bool = False) -> bool:
         """Check if locked and unlock if needed. Returns True if unlocked."""
-        if await self.is_locked(dataset, quiet=quiet):
+        if self.is_locked(dataset, quiet=quiet):
             console.print(f"[yellow]⚡[/yellow] {dataset.path} locked, unlocking...")
-            return await self.unlock(dataset)
+            return self.unlock(dataset)
         return False
 
-    async def lock(self, dataset: Dataset, *, force: bool = False) -> bool:
+    def lock(self, dataset: Dataset, *, force: bool = False) -> bool:
         """Lock a dataset."""
-        url = f"{self._base_url}/pool/dataset/lock"
-        payload = {
-            "id": dataset.path,
-            "options": {
-                "force_umount": force,
-            },
-        }
+        options = {"force_umount": force}
 
         try:
-            response = await self.client.post(url, headers=self._headers, json=payload)
-        except httpx.RequestError as e:
-            err_console.print(f"[red]Error: {e}[/red]")
-            return False
-
-        if response.status_code != 200:
-            err_console.print(f"[red]API error {response.status_code}: {response.text}[/red]")
+            self.client.call("pool.dataset.lock", dataset.path, options)
+        except Exception as e:
+            err_console.print(f"[red]Error locking {dataset.path}: {e}[/red]")
             return False
 
         console.print(f"[yellow]🔒[/yellow] Locked {dataset.path}")
@@ -293,70 +324,82 @@ def filter_datasets(datasets: list[Dataset], filters: list[str] | None) -> list[
     return [ds for ds in datasets if any(f in ds.path for f in filters)]
 
 
-async def run_unlock(
+def run_unlock(
     config: Config,
     *,
     dry_run: bool = False,
     quiet: bool = False,
     dataset_filters: list[str] | None = None,
-) -> None:
-    """Run the unlock process once, checking all datasets in parallel."""
+) -> bool:
+    """Run the unlock process once. Returns True if connection succeeded."""
     datasets = filter_datasets(config.datasets, dataset_filters)
 
     if not datasets:
         err_console.print("[yellow]No matching datasets found.[/yellow]")
-        return
+        return True  # No datasets to unlock is not a connection failure
 
     if dry_run:
         console.print("[yellow]Dry run:[/yellow]")
         for ds in datasets:
             console.print(f"  • {ds.path}")
-        return
+        return True
 
-    async with TrueNasClient(config) as client:
-        await asyncio.gather(*[client.check_and_unlock(ds, quiet=quiet) for ds in datasets])
+    try:
+        with TrueNasClient(config) as client:
+            for ds in datasets:
+                client.check_and_unlock(ds, quiet=quiet)
+        return True
+    except Exception as e:
+        err_console.print(f"[red]Connection failed: {e}[/red]")
+        return False
 
 
-async def run_lock(
+def run_lock(
     config: Config, *, force: bool = False, dataset_filters: list[str] | None = None
-) -> None:
-    """Lock all configured datasets in parallel."""
+) -> bool:
+    """Lock all configured datasets. Returns True if connection succeeded."""
     datasets = filter_datasets(config.datasets, dataset_filters)
 
     if not datasets:
         err_console.print("[yellow]No matching datasets found.[/yellow]")
-        return
+        return True
 
-    async def lock_if_unlocked(client: TrueNasClient, dataset: Dataset) -> None:
-        locked = await client.is_locked(dataset, quiet=True)
-        if locked is False:
-            await client.lock(dataset, force=force)
-        elif locked is True:
-            console.print(f"[dim]Already locked: {dataset.path}[/dim]")
+    try:
+        with TrueNasClient(config) as client:
+            for ds in datasets:
+                locked = client.is_locked(ds, quiet=True)
+                if locked is False:
+                    client.lock(ds, force=force)
+                elif locked is True:
+                    console.print(f"[dim]Already locked: {ds.path}[/dim]")
+        return True
+    except Exception as e:
+        err_console.print(f"[red]Connection failed: {e}[/red]")
+        return False
 
-    async with TrueNasClient(config) as client:
-        await asyncio.gather(*[lock_if_unlocked(client, ds) for ds in datasets])
 
-
-async def run_status(config: Config, *, dataset_filters: list[str] | None = None) -> None:
-    """Show lock status of all configured datasets in parallel."""
+def run_status(config: Config, *, dataset_filters: list[str] | None = None) -> bool:
+    """Show lock status of all configured datasets. Returns True if connection succeeded."""
     datasets = filter_datasets(config.datasets, dataset_filters)
 
     if not datasets:
         err_console.print("[yellow]No matching datasets found.[/yellow]")
-        return
+        return True
 
-    async def check_status(client: TrueNasClient, dataset: Dataset) -> None:
-        locked = await client.is_locked(dataset, quiet=True)
-        if locked is True:
-            console.print(f"[yellow]🔒[/yellow] {dataset.path} [dim]locked[/dim]")
-        elif locked is False:
-            console.print(f"[green]🔓[/green] {dataset.path} [dim]unlocked[/dim]")
-        else:
-            console.print(f"[red]?[/red] {dataset.path} [dim]unknown[/dim]")
-
-    async with TrueNasClient(config) as client:
-        await asyncio.gather(*[check_status(client, ds) for ds in datasets])
+    try:
+        with TrueNasClient(config) as client:
+            for ds in datasets:
+                locked = client.is_locked(ds, quiet=True)
+                if locked is True:
+                    console.print(f"[yellow]🔒[/yellow] {ds.path} [dim]locked[/dim]")
+                elif locked is False:
+                    console.print(f"[green]🔓[/green] {ds.path} [dim]unlocked[/dim]")
+                else:
+                    console.print(f"[red]?[/red] {ds.path} [dim]unknown[/dim]")
+        return True
+    except Exception as e:
+        err_console.print(f"[red]Connection failed: {e}[/red]")
+        return False
 
 
 app = typer.Typer(
@@ -564,7 +607,7 @@ def lock(
 
     config = Config.from_yaml(config_path)
     console.print(f"[dim]{config_path}[/dim]")
-    asyncio.run(run_lock(config, force=force, dataset_filters=dataset))
+    run_lock(config, force=force, dataset_filters=dataset)
 
 
 @app.command()
@@ -582,7 +625,7 @@ def status(
 
     config = Config.from_yaml(config_path)
     console.print(f"[dim]{config_path}[/dim]")
-    asyncio.run(run_status(config, dataset_filters=dataset))
+    run_status(config, dataset_filters=dataset)
 
 
 @app.callback(invoke_without_command=True)
@@ -615,13 +658,13 @@ def main(
         console.print(f"[bold]Running every {interval}s[/bold]")
         while True:
             try:
-                asyncio.run(run_unlock(config, dry_run=dry_run, quiet=True, dataset_filters=dataset))
+                run_unlock(config, dry_run=dry_run, quiet=True, dataset_filters=dataset)
                 time.sleep(interval)
             except KeyboardInterrupt:
                 console.print("\n[bold]Stopped[/bold]")
                 break
     else:
-        asyncio.run(run_unlock(config, dry_run=dry_run, dataset_filters=dataset))
+        run_unlock(config, dry_run=dry_run, dataset_filters=dataset)
 
 
 if __name__ == "__main__":
