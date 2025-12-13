@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.13.1/.schema/devbox.schema.json",
+  "packages": ["python@3.14", "uv@latest"],
+  "shell": {
+    "init_hook": ["uv sync --dev"],
+    "scripts": {
+      "truenas-unlock": "uv run truenas-unlock \"$@\"",
+      "test": "uv run pytest",
+      "lint": "uv run ruff check . && uv run mypy truenas_unlock.py",
+      "fmt": "uv run ruff format ."
+    }
+  }
+}
