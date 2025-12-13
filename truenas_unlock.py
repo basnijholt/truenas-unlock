@@ -191,20 +191,26 @@ class TrueNasClient:
     def _base_url(self) -> str:
         return f"https://{self.config.host}/api/v2.0"
 
-    async def is_locked(self, dataset: Dataset, *, quiet: bool = False) -> bool | None:
-        """Check if a dataset is locked."""
-        url = f"{self._base_url}/pool/dataset?id={dataset.path}"
-
+    async def _request(
+        self, method: str, path: str, *, quiet: bool = False, **kwargs: object
+    ) -> httpx.Response | None:
         try:
-            response = await self.client.get(url, headers=self._headers)
+            response = await self.client.request(
+                method, f"{self._base_url}/{path}", headers=self._headers, **kwargs
+            )
+            if response.status_code == 200:
+                return response
+            if not quiet:
+                err_console.print(f"[red]API error {response.status_code}: {response.text}[/red]")
         except httpx.RequestError as e:
             if not quiet:
                 err_console.print(f"[red]Error: {e}[/red]")
-            return None
+        return None
 
-        if response.status_code != 200:
-            if not quiet:
-                err_console.print(f"[red]API error {response.status_code}[/red]")
+    async def is_locked(self, dataset: Dataset, *, quiet: bool = False) -> bool | None:
+        """Check if a dataset is locked."""
+        response = await self._request("GET", f"pool/dataset?id={dataset.path}", quiet=quiet)
+        if not response:
             return None
 
         try:
@@ -223,7 +229,6 @@ class TrueNasClient:
 
     async def unlock(self, dataset: Dataset) -> bool:
         """Unlock a dataset."""
-        url = f"{self._base_url}/pool/dataset/unlock"
         passphrase = dataset.get_passphrase(self.config.secrets)
         payload = {
             "id": dataset.path,
@@ -236,14 +241,7 @@ class TrueNasClient:
             },
         }
 
-        try:
-            response = await self.client.post(url, headers=self._headers, json=payload)
-        except httpx.RequestError as e:
-            err_console.print(f"[red]Error: {e}[/red]")
-            return False
-
-        if response.status_code != 200:
-            err_console.print(f"[red]API error {response.status_code}[/red]")
+        if not await self._request("POST", "pool/dataset/unlock", json=payload):
             return False
 
         console.print(f"[blue]→[/blue] Unlocked {dataset.path}")
@@ -262,7 +260,6 @@ class TrueNasClient:
 
     async def lock(self, dataset: Dataset, *, force: bool = False) -> bool:
         """Lock a dataset."""
-        url = f"{self._base_url}/pool/dataset/lock"
         payload = {
             "id": dataset.path,
             "options": {
@@ -270,14 +267,7 @@ class TrueNasClient:
             },
         }
 
-        try:
-            response = await self.client.post(url, headers=self._headers, json=payload)
-        except httpx.RequestError as e:
-            err_console.print(f"[red]Error: {e}[/red]")
-            return False
-
-        if response.status_code != 200:
-            err_console.print(f"[red]API error {response.status_code}: {response.text}[/red]")
+        if not await self._request("POST", "pool/dataset/lock", json=payload):
             return False
 
         console.print(f"[yellow]🔒[/yellow] Locked {dataset.path}")
@@ -322,7 +312,8 @@ async def run_unlock(
     try:
         async with TrueNasClient(config) as client:
             results = await asyncio.gather(
-                *[client.check_and_unlock(ds, quiet=quiet) for ds in datasets], return_exceptions=True
+                *[client.check_and_unlock(ds, quiet=quiet) for ds in datasets],
+                return_exceptions=True,
             )
 
             # Check for connection errors in results
@@ -655,7 +646,7 @@ def main(
                 else:
                     if last_success:
                         console.print(
-                            "[yellow]Connection lost/unstable. Switching to panic mode (1s interval).[/yellow]"
+                            "[yellow]Connection lost/unstable. Switching to panic mode (1s interval).[/yellow]",
                         )
                     current_interval = 1
 
