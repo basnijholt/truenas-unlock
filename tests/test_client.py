@@ -121,7 +121,8 @@ def mock_config_with_version() -> Config:
 
 @pytest.mark.anyio
 async def test_unlock(
-    mock_config_with_version: Config, mock_httpx_client: MagicMock,
+    mock_config_with_version: Config,
+    mock_httpx_client: MagicMock,
 ) -> None:
     """Test unlock logic."""
     mock_response = MagicMock(spec=httpx.Response)

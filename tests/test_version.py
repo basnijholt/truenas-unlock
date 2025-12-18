@@ -88,7 +88,8 @@ class TestClientVersionDetection:
 
     @pytest.mark.anyio
     async def test_uses_config_version_when_provided(
-        self, mock_config_with_version: Config,
+        self,
+        mock_config_with_version: Config,
     ) -> None:
         """Test that config version is used when provided, skipping API call."""
         with patch("httpx.AsyncClient") as mock_client_cls:
@@ -102,16 +103,13 @@ class TestClientVersionDetection:
                 # Should use old API (24.10 < 25.04)
                 assert use_new is False
                 # Should NOT have made a version API call
-                version_calls = [
-                    call
-                    for call in mock_client.request.call_args_list
-                    if "system/version" in str(call)
-                ]
+                version_calls = [call for call in mock_client.request.call_args_list if "system/version" in str(call)]
                 assert len(version_calls) == 0
 
     @pytest.mark.anyio
     async def test_fetches_version_when_not_in_config(
-        self, mock_config_no_version: Config,
+        self,
+        mock_config_no_version: Config,
     ) -> None:
         """Test that version is fetched from API when not in config."""
         mock_response = MagicMock(spec=httpx.Response)
@@ -154,7 +152,8 @@ class TestClientVersionDetection:
 
     @pytest.mark.anyio
     async def test_unlock_uses_old_api_param(
-        self, mock_config_with_version: Config,
+        self,
+        mock_config_with_version: Config,
     ) -> None:
         """Test that unlock uses unlock_options for old TrueNAS versions."""
         mock_response = MagicMock(spec=httpx.Response)
@@ -171,11 +170,7 @@ class TestClientVersionDetection:
                 await client.unlock(ds)
 
                 # Check the unlock call used unlock_options
-                unlock_call = next(
-                    call
-                    for call in mock_client.request.call_args_list
-                    if "unlock" in str(call)
-                )
+                unlock_call = next(call for call in mock_client.request.call_args_list if "unlock" in str(call))
                 json_arg = unlock_call.kwargs.get("json", {})
                 assert "unlock_options" in json_arg
                 assert "options" not in json_arg
