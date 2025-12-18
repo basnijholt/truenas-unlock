@@ -10,56 +10,56 @@ from truenas_unlock import (
     Dataset,
     SecretsMode,
     TrueNasClient,
-    parse_truenas_version,
-    uses_new_unlock_api,
+    _parse_truenas_version,
+    _uses_new_unlock_api,
 )
 
 
 class TestParseVersion:
-    """Tests for parse_truenas_version function."""
+    """Tests for _parse_truenas_version function."""
 
     def test_new_format(self) -> None:
         """Test parsing new format: TrueNAS-25.04.0."""
-        assert parse_truenas_version("TrueNAS-25.04.0") == (25, 4)
+        assert _parse_truenas_version("TrueNAS-25.04.0") == (25, 4)
 
     def test_old_format(self) -> None:
         """Test parsing old format: TrueNAS-SCALE-24.10.2.1."""
-        assert parse_truenas_version("TrueNAS-SCALE-24.10.2.1") == (24, 10)
+        assert _parse_truenas_version("TrueNAS-SCALE-24.10.2.1") == (24, 10)
 
     def test_simple_version(self) -> None:
         """Test parsing simple version string."""
-        assert parse_truenas_version("25.04") == (25, 4)
-        assert parse_truenas_version("24.10.2") == (24, 10)
+        assert _parse_truenas_version("25.04") == (25, 4)
+        assert _parse_truenas_version("24.10.2") == (24, 10)
 
     def test_invalid_version(self) -> None:
         """Test parsing invalid version string."""
-        assert parse_truenas_version("invalid") is None
-        assert parse_truenas_version("") is None
+        assert _parse_truenas_version("invalid") is None
+        assert _parse_truenas_version("") is None
 
     def test_edge_cases(self) -> None:
         """Test edge cases."""
-        assert parse_truenas_version("25.04.2.6") == (25, 4)
-        assert parse_truenas_version("1.0") == (1, 0)
+        assert _parse_truenas_version("25.04.2.6") == (25, 4)
+        assert _parse_truenas_version("1.0") == (1, 0)
 
 
 class TestUsesNewUnlockApi:
-    """Tests for uses_new_unlock_api function."""
+    """Tests for _uses_new_unlock_api function."""
 
     def test_new_api_versions(self) -> None:
         """Test versions that should use new API (>= 25.04)."""
-        assert uses_new_unlock_api((25, 4)) is True
-        assert uses_new_unlock_api((25, 10)) is True
-        assert uses_new_unlock_api((26, 0)) is True
+        assert _uses_new_unlock_api((25, 4)) is True
+        assert _uses_new_unlock_api((25, 10)) is True
+        assert _uses_new_unlock_api((26, 0)) is True
 
     def test_old_api_versions(self) -> None:
         """Test versions that should use old API (< 25.04)."""
-        assert uses_new_unlock_api((24, 10)) is False
-        assert uses_new_unlock_api((24, 4)) is False
-        assert uses_new_unlock_api((25, 3)) is False
+        assert _uses_new_unlock_api((24, 10)) is False
+        assert _uses_new_unlock_api((24, 4)) is False
+        assert _uses_new_unlock_api((25, 3)) is False
 
     def test_none_defaults_to_new(self) -> None:
         """Test that None version defaults to new API."""
-        assert uses_new_unlock_api(None) is True
+        assert _uses_new_unlock_api(None) is True
 
 
 class TestClientVersionDetection:

@@ -101,7 +101,7 @@ LAUNCHD_PLIST = """\
 TRUENAS_NEW_API_VERSION = (25, 4)
 
 
-def parse_truenas_version(version_string: str) -> tuple[int, int] | None:
+def _parse_truenas_version(version_string: str) -> tuple[int, int] | None:
     """Parse TrueNAS version string to (major, minor) tuple.
 
     Handles formats like:
@@ -116,7 +116,7 @@ def parse_truenas_version(version_string: str) -> tuple[int, int] | None:
     return None
 
 
-def uses_new_unlock_api(version: tuple[int, int] | None) -> bool:
+def _uses_new_unlock_api(version: tuple[int, int] | None) -> bool:
     """Determine if the TrueNAS version uses the new 'options' parameter.
 
     Returns True for versions >= 25.04, False otherwise.
@@ -250,12 +250,12 @@ class TrueNasClient:
 
         # Use config version if provided (skips API call)
         if self.config.truenas_version:
-            version = parse_truenas_version(self.config.truenas_version)
+            version = _parse_truenas_version(self.config.truenas_version)
         else:
             version_str = await self.get_version()
-            version = parse_truenas_version(version_str) if version_str else None
+            version = _parse_truenas_version(version_str) if version_str else None
 
-        self._use_new_api = uses_new_unlock_api(version)
+        self._use_new_api = _uses_new_unlock_api(version)
         return self._use_new_api
 
     async def _request(
