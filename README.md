@@ -30,6 +30,8 @@ Think of it as a hardware security key for your storage—hidden somewhere in yo
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
+- [Docker](#docker)
+  - [Shell Alias](#shell-alias)
 - [Install](#install)
 - [Setup](#setup)
 - [Usage](#usage)
@@ -40,6 +42,35 @@ Think of it as a hardware security key for your storage—hidden somewhere in yo
 - [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
+
+## Docker
+
+Run once:
+
+```bash
+docker run --rm -it \
+  -v ~/.config/truenas-unlock/config.yaml:/app/config.yaml \
+  ghcr.io/basnijholt/truenas-unlock -c /app/config.yaml
+```
+
+Run as daemon (recommended for auto-unlock on boot):
+
+```bash
+docker run -d --restart=unless-stopped \
+  --name truenas-unlock \
+  -v ~/.config/truenas-unlock/config.yaml:/app/config.yaml \
+  ghcr.io/basnijholt/truenas-unlock -c /app/config.yaml --daemon
+```
+
+### Shell Alias
+
+Add to your `~/.bashrc` or `~/.zshrc`:
+
+```bash
+alias truenas-unlock='docker run --rm -it \
+  -v ~/.config/truenas-unlock/config.yaml:/app/config.yaml \
+  ghcr.io/basnijholt/truenas-unlock -c /app/config.yaml'
+```
 
 ## Install
 

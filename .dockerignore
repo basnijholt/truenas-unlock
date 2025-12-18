@@ -1,0 +1,8 @@
+# Ignore everything, whitelist what is needed
+*
+!.git
+!.git/**
+!README.md
+!pyproject.toml
+!truenas_unlock.py
+!uv.lock
