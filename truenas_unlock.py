@@ -623,7 +623,7 @@ def lock(
         raise typer.Exit(1)
 
     config = Config.from_yaml(config_path)
-    console.print(f"[dim]{config_path}[/dim]")
+    console.print(f"[dim]{_display_path(config_path)}[/dim]")
     asyncio.run(run_lock(config, force=force, dataset_filters=dataset))
 
 
@@ -641,7 +641,7 @@ def status(
         raise typer.Exit(1)
 
     config = Config.from_yaml(config_path)
-    console.print(f"[dim]{config_path}[/dim]")
+    console.print(f"[dim]{_display_path(config_path)}[/dim]")
     asyncio.run(run_status(config, dataset_filters=dataset))
 
 
@@ -673,7 +673,7 @@ def main(
         raise typer.Exit(1)
 
     config = Config.from_yaml(config_path)
-    console.print(f"[dim]{config_path}[/dim]")
+    console.print(f"[dim]{_display_path(config_path)}[/dim]")
 
     if daemon:
         console.print(f"[bold]Running with smart polling (interval: {interval}s)[/bold]")
