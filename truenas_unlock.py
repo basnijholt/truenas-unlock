@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import os
 import platform
+import re
 import shutil
 import subprocess
 import time
@@ -41,6 +42,7 @@ host: 192.168.1.214:443
 api_key: ~/.secrets/truenas-api-key  # file path or literal value
 skip_cert_verify: true
 # secrets: auto  # auto (default), files, or inline
+# truenas_version: "25.04"  # optional: skip version detection API call
 
 datasets:
   tank/syncthing: ~/.secrets/syncthing-key
@@ -94,6 +96,37 @@ LAUNCHD_PLIST = """\
 """
 
 
+# TrueNAS 25.04+ uses "options", older versions use "unlock_options"
+# See: https://github.com/basnijholt/truenas-unlock/issues/5
+TRUENAS_NEW_API_VERSION = (25, 4)
+
+
+def parse_truenas_version(version_string: str) -> tuple[int, int] | None:
+    """Parse TrueNAS version string to (major, minor) tuple.
+
+    Handles formats like:
+    - "TrueNAS-25.04.0"
+    - "TrueNAS-SCALE-24.10.2.1"
+    - "25.04.0"
+    """
+    # Extract version numbers from the string
+    match = re.search(r"(\d+)\.(\d+)", version_string)
+    if match:
+        return int(match.group(1)), int(match.group(2))
+    return None
+
+
+def uses_new_unlock_api(version: tuple[int, int] | None) -> bool:
+    """Determine if the TrueNAS version uses the new 'options' parameter.
+
+    Returns True for versions >= 25.04, False otherwise.
+    Defaults to True (new API) if version cannot be determined.
+    """
+    if version is None:
+        return True  # Default to new API
+    return version >= TRUENAS_NEW_API_VERSION
+
+
 class SecretsMode(str, Enum):
     """How to interpret secret values."""
 
@@ -143,6 +176,7 @@ class Config(BaseModel):
     api_key: str  # file path or literal value
     skip_cert_verify: bool = False
     secrets: SecretsMode = SecretsMode.AUTO
+    truenas_version: str | None = None  # e.g., "25.04" or "24.10" - skips version detection
     datasets: list[Dataset]
 
     def get_api_key(self) -> str:  # noqa: D102
@@ -169,6 +203,7 @@ class TrueNasClient:
     def __init__(self, config: Config) -> None:  # noqa: D107
         self.config = config
         self._client: httpx.AsyncClient | None = None
+        self._use_new_api: bool | None = None  # Cached after first detection
 
     async def __aenter__(self) -> TrueNasClient:  # noqa: D105, PYI034
         self._client = httpx.AsyncClient(
@@ -195,6 +230,33 @@ class TrueNasClient:
     @property
     def _base_url(self) -> str:
         return f"https://{self.config.host}/api/v2.0"
+
+    async def get_version(self) -> str | None:
+        """Get TrueNAS version string."""
+        response = await self._request("GET", "system/version", quiet=True)
+        if response:
+            try:
+                # Response is a plain string like "TrueNAS-25.04.0"
+                result = response.json()
+                return str(result) if result else None
+            except ValueError:
+                return response.text.strip().strip('"')
+        return None
+
+    async def _get_use_new_api(self) -> bool:
+        """Determine if we should use new API style, with caching."""
+        if self._use_new_api is not None:
+            return self._use_new_api
+
+        # Use config version if provided (skips API call)
+        if self.config.truenas_version:
+            version = parse_truenas_version(self.config.truenas_version)
+        else:
+            version_str = await self.get_version()
+            version = parse_truenas_version(version_str) if version_str else None
+
+        self._use_new_api = uses_new_unlock_api(version)
+        return self._use_new_api
 
     async def _request(
         self,
@@ -243,16 +305,18 @@ class TrueNasClient:
     async def unlock(self, dataset: Dataset) -> bool:
         """Unlock a dataset."""
         passphrase = dataset.get_passphrase(self.config.secrets)
-        payload = {
-            "id": dataset.path,
-            "options": {
-                "key_file": False,
-                "recursive": False,
-                "force": True,
-                "toggle_attachments": True,
-                "datasets": [{"name": dataset.path, "passphrase": passphrase}],
-            },
+        options = {
+            "key_file": False,
+            "recursive": False,
+            "force": True,
+            "toggle_attachments": True,
+            "datasets": [{"name": dataset.path, "passphrase": passphrase}],
         }
+
+        # TrueNAS 25.04+ uses "options", older versions use "unlock_options"
+        use_new_api = await self._get_use_new_api()
+        options_key = "options" if use_new_api else "unlock_options"
+        payload = {"id": dataset.path, options_key: options}
 
         if not await self._request("POST", "pool/dataset/unlock", json=payload):
             return False

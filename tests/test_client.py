@@ -105,16 +105,32 @@ async def test_is_locked(mock_config: Config, mock_httpx_client: MagicMock) -> N
         assert await client.is_locked(ds) is None
 
 
+@pytest.fixture
+def mock_config_with_version() -> Config:
+    """Return a mock configuration with version specified."""
+    return Config(
+        host="truenas.local",
+        api_key="secret-key",
+        secrets=SecretsMode.INLINE,
+        truenas_version="25.04",  # New version, uses "options"
+        datasets=[
+            Dataset(path="tank/secure", secret="pass1"),
+        ],
+    )
+
+
 @pytest.mark.anyio
-async def test_unlock(mock_config: Config, mock_httpx_client: MagicMock) -> None:
+async def test_unlock(
+    mock_config_with_version: Config, mock_httpx_client: MagicMock,
+) -> None:
     """Test unlock logic."""
     mock_response = MagicMock(spec=httpx.Response)
     mock_response.status_code = 200
     mock_httpx_client.request.return_value = mock_response
 
-    async with TrueNasClient(mock_config) as client:
+    async with TrueNasClient(mock_config_with_version) as client:
         client._client = mock_httpx_client  # noqa: SLF001
-        ds = mock_config.datasets[0]
+        ds = mock_config_with_version.datasets[0]
 
         assert await client.unlock(ds) is True
 

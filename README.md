@@ -94,11 +94,14 @@ api_key: ~/.secrets/truenas-api-key  # file path or literal
 skip_cert_verify: true
 
 # secrets: auto  # auto (default) | files | inline
+# truenas_version: "25.04"  # optional: skip version detection API call
 
 datasets:
   tank/syncthing: ~/.secrets/syncthing-key  # reads from file
   tank/photos: my-literal-passphrase        # used as-is (no such file)
 ```
+
+The `truenas_version` field is optional. When specified (e.g., `"25.04"` or `"24.10"`), it skips the automatic version detection API call. This is useful if you know your TrueNAS version and want to reduce API calls. TrueNAS 25.04+ uses a different unlock API than older versions.
 
 The `secrets` mode controls how values are interpreted:
 - **auto** (default): if file exists, read from it; otherwise use as literal

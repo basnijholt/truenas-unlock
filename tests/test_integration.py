@@ -29,6 +29,10 @@ async def test_integration_run_unlock_success(mock_config: Config) -> None:
     - tank/secure is LOCKED -> Unlocked successfully.
     - tank/media is UNLOCKED -> Skipped.
     """
+    mock_response_version = MagicMock(spec=httpx.Response)
+    mock_response_version.status_code = 200
+    mock_response_version.json.return_value = "TrueNAS-25.04.0"
+
     mock_response_locked = MagicMock(spec=httpx.Response)
     mock_response_locked.status_code = 200
     mock_response_locked.json.return_value = [{"locked": True}]
@@ -42,12 +46,15 @@ async def test_integration_run_unlock_success(mock_config: Config) -> None:
     mock_response_success.json.return_value = {}
 
     # We need to simulate the sequence of calls:
-    # 1. GET is_locked(tank/secure) -> True
-    # 2. POST unlock(tank/secure) -> Success
-    # 3. GET is_locked(tank/media) -> False
+    # 1. GET system/version -> "TrueNAS-25.04.0"
+    # 2. GET is_locked(tank/secure) -> True
+    # 3. POST unlock(tank/secure) -> Success
+    # 4. GET is_locked(tank/media) -> False
 
     # We'll use a side_effect function to return the right response based on URL/method
     async def request_handler(method: str, url: str, **kwargs: object) -> MagicMock:  # noqa: ARG001
+        if "system/version" in url and method == "GET":
+            return mock_response_version
         if "tank/secure" in url and method == "GET":
             return mock_response_locked
         if "unlock" in url and method == "POST":
@@ -65,7 +72,7 @@ async def test_integration_run_unlock_success(mock_config: Config) -> None:
         result = await run_unlock(mock_config)
 
         assert result is True
-        assert mock_client.request.call_count == 3  # noqa: PLR2004
+        assert mock_client.request.call_count == 4  # noqa: PLR2004
 
 
 @pytest.mark.anyio
