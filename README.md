@@ -30,50 +30,46 @@ Think of it as a hardware security key for your storage—hidden somewhere in yo
 <!-- START doctoc generated TOC please keep comment here to allow auto update -->
 <!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
 
-- [TrueNAS Unlock](#truenas-unlock)
-  - [Why?](#why)
-  - [Table of Contents](#table-of-contents)
-  - [Docker](#docker)
-    - [Shell Aliases](#shell-aliases)
-      - [Zsh](#zsh)
-      - [Bash](#bash)
-  - [Install](#install)
-  - [Setup](#setup)
-  - [Usage](#usage)
-  - [CLI](#cli)
-  - [Running as a Service](#running-as-a-service)
-  - [Development](#development)
-  - [Credits](#credits)
-  - [License](#license)
+- [Docker](#docker)
+  - [Shell Alias](#shell-alias)
+- [Install](#install)
+- [Setup](#setup)
+- [Usage](#usage)
+- [CLI](#cli)
+- [Running as a Service](#running-as-a-service)
+- [Development](#development)
+- [Credits](#credits)
+- [License](#license)
 
 <!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Docker
 
-Append any args to the end of the following run command
+Run once:
 
-```shell
-docker run --rm -it -v ./config.yaml:/app/config.yaml ghcr.io/basnijholt/truenas-unlock -c ./config.yaml <args>
+```bash
+docker run --rm -it \
+  -v ~/.config/truenas-unlock/config.yaml:/app/config.yaml \
+  ghcr.io/basnijholt/truenas-unlock -c /app/config.yaml
 ```
 
-### Shell Aliases
+Run as daemon (recommended for auto-unlock on boot):
 
-_Note: Use the full path to your config file_
-
-#### Zsh
-
-```shell
-echo 'alias truenas-unlock="docker run --rm -it -v ./config.yaml:/app/config.yaml ghcr.io/basnijholt/truenas-unlock -c ./config.yaml"' >> ~/.zshrc
-source ~/.zshrc
+```bash
+docker run -d --restart=unless-stopped \
+  --name truenas-unlock \
+  -v ~/.config/truenas-unlock/config.yaml:/app/config.yaml \
+  ghcr.io/basnijholt/truenas-unlock -c /app/config.yaml --daemon
 ```
 
-#### Bash
+### Shell Alias
 
-_Note: Use the full path to your config file_
+Add to your `~/.bashrc` or `~/.zshrc`:
 
-```shell
-echo 'alias truenas-unlock="docker run --rm -it -v ./config.yaml:/app/config.yaml ghcr.io/basnijholt/truenas-unlock -c ./config.yaml"' >> ~/.bashrc
-source ~/.bashrc
+```bash
+alias truenas-unlock='docker run --rm -it \
+  -v ~/.config/truenas-unlock/config.yaml:/app/config.yaml \
+  ghcr.io/basnijholt/truenas-unlock -c /app/config.yaml'
 ```
 
 ## Install

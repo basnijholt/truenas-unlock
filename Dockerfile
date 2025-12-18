@@ -9,7 +9,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get clean && rm -rf /var/lib/apt
 ENV UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy UV_PYTHON_PREFERENCE=only-managed \
     UV_NO_DEV=1 UV_NO_EDITABLE=1 UV_FROZEN=1
 
-# Configure the Python install directory for use when copying beyween stages
+# Configure the Python install directory for use when copying between stages
 ENV UV_PYTHON_INSTALL_DIR=/python
 
 WORKDIR /app
