@@ -295,6 +295,14 @@ def find_config() -> Path | None:
     return None
 
 
+def print_config_not_found() -> None:
+    """Print error message showing which config paths were searched."""
+    err_console.print("[red]Config not found.[/red]")
+    err_console.print("\nSearched paths:")
+    for path in CONFIG_SEARCH_PATHS:
+        err_console.print(f"  • {path}")
+
+
 def filter_datasets(datasets: list[Dataset], filters: list[str] | None) -> list[Dataset]:
     """Filter datasets by path patterns."""
     if not filters:
@@ -603,7 +611,7 @@ def lock(
         config_path = find_config()
 
     if config_path is None or not config_path.exists():
-        err_console.print("[red]Config not found.[/red]")
+        print_config_not_found()
         raise typer.Exit(1)
 
     config = Config.from_yaml(config_path)
@@ -621,7 +629,7 @@ def status(
         config_path = find_config()
 
     if config_path is None or not config_path.exists():
-        err_console.print("[red]Config not found.[/red]")
+        print_config_not_found()
         raise typer.Exit(1)
 
     config = Config.from_yaml(config_path)
@@ -651,7 +659,7 @@ def main(
         config_path = find_config()
 
     if config_path is None or not config_path.exists():
-        err_console.print("[red]Config not found.[/red]")
+        print_config_not_found()
         err_console.print("\nCreate ~/.config/truenas-unlock/config.yaml:\n")
         err_console.print(EXAMPLE_CONFIG)
         raise typer.Exit(1)
